@@ -16,17 +16,7 @@ services:
       - postgres
     env_file:
       - .env
-    command: >
-      bash -c "
-      airflow db migrate &&
-      airflow users create
-        --username ${_AIRFLOW_WWW_USER_USERNAME}
-        --password ${_AIRFLOW_WWW_USER_PASSWORD}
-        --firstname Admin
-        --lastname User
-        --role Admin
-        --email admin@example.com
-      "
+    command: ["bash","-c","airflow db migrate && airflow users create --username ${_AIRFLOW_WWW_USER_USERNAME} --password ${_AIRFLOW_WWW_USER_PASSWORD} --firstname Admin --lastname User --role Admin --email admin@example.com"]
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -60,13 +50,32 @@ services:
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
 
-  spark:
-    image: bitnami/spark:3.5
-    environment:
-      - SPARK_MODE=master
+  spark-master:
+    image: apache/spark:3.5.8-scala2.12-java11-python3-r-ubuntu
+    container_name: spark-master
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+      --host spark-master
+      --port 7077
+      --webui-port 8081
     ports:
       - "7077:7077"
       - "8081:8081"
+    volumes:
+      - ./spark_jobs:/opt/spark_jobs
+      - ./data:/opt/data
+
+  spark-worker:
+    image: apache/spark:3.5.8-scala2.12-java11-python3-r-ubuntu
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
+      spark://spark-master:7077
+      --webui-port 8082
+    ports:
+      - "8082:8082"
     volumes:
       - ./spark_jobs:/opt/spark_jobs
       - ./data:/opt/data
